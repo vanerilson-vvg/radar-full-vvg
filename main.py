@@ -5,11 +5,11 @@ import requests
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 
-# Configuração e Refresh Rápido (10s para preço mais ágil)
+# Configuração e Refresh Rápido (10s)
 st.set_page_config(page_title="VVG Terminal Pro", layout="wide")
-st_autorefresh(interval=10000, key="vvg_v5_realtime")
+st_autorefresh(interval=10000, key="vvg_v6_final")
 
-# Estilo Visual Terminal/Bloomberg
+# Estilo Visual Terminal
 st.markdown("""
     <style>
     .main { background-color: #000000; }
@@ -23,18 +23,14 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 def buscar_dados_completos(intervalo):
-    # Puxamos 2 dias para ter o fechamento de ontem e o preço de agora
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/EURUSD=X?interval={intervalo}&range=2d"
     try:
         res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
         data = res.json()['chart']['result'][0]
         df = pd.DataFrame(data['indicators']['quote'][0])
         df['close'] = df['close'].ffill()
-        
-        # Dados de Fechamento Anterior e Preço Atual
         preco_atual = data['meta']['regularMarketPrice']
         preco_anterior = data['meta']['previousClose']
-        
         return df, preco_atual, preco_anterior
     except: return None, 0, 0
 
@@ -66,11 +62,10 @@ def painel_medias(df):
         lista_ma.append([f"MA {p}", sinal])
     return lista_ma
 
-# --- Execução e Cálculos ---
+# --- Lógica de Execução ---
 df1, preco, anterior = buscar_dados_completos("1m")
 df5, _, _ = buscar_dados_completos("5m")
 
-# Cálculo de Pips e Porcentagem
 variacao = preco - anterior
 pips = variacao * 10000
 porcentagem = (variacao / anterior) * 100
@@ -80,7 +75,7 @@ seta = "▲" if variacao >= 0 else "▼"
 # --- Interface Principal ---
 st.markdown(f"### 🖥️ TERMINAL VVG | EUR/USD")
 st.markdown(f'<p class="{cor_classe}">{preco:.5f} <span style="font-size:16px;">{seta} {pips:.1f} Pips ({porcentagem:.2f}%)</span></p>', unsafe_allow_html=True)
-st.caption(f"Sincronizado: {datetime.now().strftime('%H:%M:%S')} | Fechamento Anterior: {anterior:.5f}")
+st.caption(f"Sincronizado: {datetime.now().strftime('%H:%M:%S')}")
 
 if df1 is not None:
     # --- BLOCO 1: INDICADORES TÉCNICOS ---
@@ -89,10 +84,12 @@ if df1 is not None:
     tabela_ind = [[k, ind1[k], ind5.get(k, "⚪ ---")] for k in ind1.keys()]
     st.table(pd.DataFrame(tabela_ind, columns=["INDICADOR", "M1", "M5"]))
     
-    # Força dos Indicadores
+    # Cálculo de Força e Bolinha de Status
     c_ind = sum(1 for v in ind1.values() if "COMPRA" in v)
     f_ind = (c_ind / len(ind1)) * 100
-    st.write(f"⚡ **FORÇA INDICADORES (M1):** {f_ind:.0f}%")
+    status_ind = "🟢" if f_ind >= 50 else "🔴"
+    
+    st.write(f"{status_ind} **FORÇA INDICADORES (M1):** {f_ind:.0f}%")
     st.progress(f_ind/100)
     
     st.markdown("---")
@@ -109,10 +106,12 @@ if df1 is not None:
         st.write("⏱️ **M5**")
         st.table(pd.DataFrame(ma5, columns=["PERÍODO", "SINAL"]))
     
-    # Força das Médias
+    # Cálculo de Força e Bolinha de Status
     c_ma = sum(1 for m in ma1 if "COMPRA" in m[1])
     f_ma = (c_ma / len(ma1)) * 100
-    st.write(f"⚡ **FORÇA MÉDIAS (M1):** {f_ma:.0f}%")
+    status_ma = "🟢" if f_ma >= 50 else "🔴"
+
+    st.write(f"{status_ma} **FORÇA MÉDIAS (M1):** {f_ma:.0f}%")
     st.progress(f_ma/100)
 
     st.markdown("---")
@@ -122,4 +121,4 @@ if df1 is not None:
     if forca_total > 70: st.success(f"🚀 **COMPRA FORTE ({forca_total:.0f}%)**")
     elif forca_total < 30: st.error(f"📉 **VENDA FORTE ({forca_total:.0f}%)**")
     else: st.warning(f"⚖️ **NEUTRO / AGUARDAR ({forca_total:.0f}%)**")
-        
+    
