@@ -5,9 +5,9 @@ import requests
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 
-# CONFIGURAÇÃO ULTRA RÁPIDA: Atualiza a cada 2 segundos
+# ATUALIZAÇÃO ULTRA RÁPIDA (2 SEGUNDOS)
 st.set_page_config(page_title="VVG Terminal Pro", layout="wide")
-st_autorefresh(interval=2000, key="vvg_ultra_fast")
+st_autorefresh(interval=2000, key="vvg_v8_clean")
 
 # Estilo Visual Terminal
 st.markdown("""
@@ -35,7 +35,6 @@ def buscar_dados_completos(intervalo):
         return df, preco_atual, preco_anterior
     except: return None, 0, 0
 
-# (Funções calcular_sinais e painel_medias permanecem as mesmas para garantir estabilidade)
 def calcular_sinais(df):
     if df is None or len(df) < 50: return {}
     c = df['close']; s = {}
@@ -65,25 +64,24 @@ def painel_medias(df):
 df1, preco, anterior = buscar_dados_completos("1m")
 df5, _, _ = buscar_dados_completos("5m")
 
-# Cálculos de Variação e Correção MT5
-preco_corrigido = preco - 0.00050  # Correção de 5 pontos (pips)
+# Reajuste de 4 pontos (0.00040)
+preco_reajustado = preco - 0.00040 
 variacao = preco - anterior
 pips = variacao * 10000
-porcentagem = (variacao / anterior) * 100
 cor_classe = "price-main" if variacao >= 0 else "price-down"
 
 # --- Interface Principal ---
 st.markdown(f"### 🖥️ TERMINAL VVG | EUR/USD")
 
-# Preço Original e Preço Corrigido
+# Preço Principal e MT5 Reajustado
 st.markdown(f'<p class="{cor_classe}">{preco:.5f} <span style="font-size:16px;">({pips:.1f} Pips)</span></p>', unsafe_allow_html=True)
-st.markdown(f'<p class="price-mt5">MT5 CORRIGIDO: {preco_corrigido:.5f} 🛠️</p>', unsafe_allow_html=True)
+st.markdown(f'<p class="price-mt5">MT5: {preco_reajustado:.5f}</p>', unsafe_allow_html=True)
 
-st.caption(f"Atualização real-time (2s) | Sincronizado: {datetime.now().strftime('%H:%M:%S')}")
+st.caption(f"Sincronizado: {datetime.now().strftime('%H:%M:%S')}")
 
 if df1 is not None:
     st.markdown("---")
-    # --- BLOCO 1: INDICADORES ---
+    # BLOCO 1: INDICADORES
     st.markdown("### 📊 INDICADORES TÉCNICOS")
     ind1, ind5 = calcular_sinais(df1), calcular_sinais(df5)
     st.table(pd.DataFrame([[k, ind1[k], ind5.get(k, "⚪ ---")] for k in ind1.keys()], columns=["INDICADOR", "M1", "M5"]))
@@ -93,7 +91,7 @@ if df1 is not None:
     st.progress(f_ind/100)
     
     st.markdown("---")
-    # --- BLOCO 2: MÉDIAS MÓVEIS ---
+    # BLOCO 2: MÉDIAS MÓVEIS
     st.markdown("### 📈 MÉDIAS MÓVEIS")
     ma1, ma5 = painel_medias(df1), painel_medias(df5)
     col1, col2 = st.columns(2)
@@ -105,7 +103,7 @@ if df1 is not None:
     st.progress(f_ma/100)
 
     st.markdown("---")
-    # --- BLOCO 3: VEREDITO ---
+    # BLOCO 3: VEREDITO
     forca_total = (f_ind + f_ma) / 2
     if forca_total > 70: st.success(f"🚀 **COMPRA FORTE ({forca_total:.0f}%)**")
     elif forca_total < 30: st.error(f"📉 **VENDA FORTE ({forca_total:.0f}%)**")
