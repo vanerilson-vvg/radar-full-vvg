@@ -5,17 +5,18 @@ import requests
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 
-# Configuração e Refresh (15s)
+# Configuração e Refresh
 st.set_page_config(page_title="VVG Terminal Pro", layout="wide")
-st_autorefresh(interval=15000, key="vvg_v3_unificado")
+st_autorefresh(interval=15000, key="vvg_v4_organized")
 
-# Estilo Visual Terminal/Bloomberg
+# Estilo Visual Terminal
 st.markdown("""
     <style>
     .main { background-color: #000000; }
     .stMarkdown, p, h3, h2, h1 { color: #00FF00 !important; font-family: 'Courier New', monospace; }
     .stTable { background-color: #050505; color: #ffffff; border: 1px solid #333; }
     thead th { color: #FFFF00 !important; }
+    hr { border: 0.5px solid #333; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -33,8 +34,8 @@ def calcular_sinais(df):
     if df is None or len(df) < 50: return {}
     c = df['close']
     s = {}
-    s['Média (EMA 9)'] = "🟢 COMPRA" if c.iloc[-1] > ta.ema(c, length=9).iloc[-1] else "🔴 VENDA"
-    s['Média (EMA 21)'] = "🟢 COMPRA" if c.iloc[-1] > ta.ema(c, length=21).iloc[-1] else "🔴 VENDA"
+    s['EMA 9'] = "🟢 COMPRA" if c.iloc[-1] > ta.ema(c, length=9).iloc[-1] else "🔴 VENDA"
+    s['EMA 21'] = "🟢 COMPRA" if c.iloc[-1] > ta.ema(c, length=21).iloc[-1] else "🔴 VENDA"
     rsi = ta.rsi(c, length=14).iloc[-1]
     s['RSI (14)'] = "🟢 COMPRA" if rsi < 40 else ("🔴 VENDA" if rsi > 60 else "⚪ NEUTRO")
     macd = ta.macd(c)
@@ -57,56 +58,55 @@ def painel_medias(df):
         lista_ma.append([f"MA {p}", sinal])
     return lista_ma
 
-# --- Execução Principal ---
+# --- Interface Principal ---
 df1, preco = buscar_dados("1m")
 df5, _ = buscar_dados("5m")
 
 st.write(f"### 🖥️ TERMINAL VVG | EUR/USD: {preco:.5f}")
 st.caption(f"Sincronizado: {datetime.now().strftime('%H:%M:%S')}")
 
-if df1 is not None and df5 is not None:
-    # 1. Tabelas de Dados (Indicadores e Médias)
+if df1 is not None:
+    # --- BLOCO 1: INDICADORES TÉCNICOS ---
+    st.markdown("### 📊 INDICADORES TÉCNICOS")
     ind1, ind5 = calcular_sinais(df1), calcular_sinais(df5)
-    tabela = [[k, ind1[k], ind5.get(k, "⚪ ---")] for k in ind1.keys()]
-    st.table(pd.DataFrame(tabela, columns=["INDICADOR", "SINAL M1", "SINAL M5"]))
+    tabela_ind = [[k, ind1[k], ind5.get(k, "⚪ ---")] for k in ind1.keys()]
+    st.table(pd.DataFrame(tabela_ind, columns=["INDICADOR", "M1", "M5"]))
     
-    st.markdown("### 📈 MÉDIAS MÓVEIS (RESUMO)")
+    # Força dos Indicadores (Logo abaixo da tabela)
+    c_ind = sum(1 for v in ind1.values() if "COMPRA" in v)
+    f_ind = (c_ind / len(ind1)) * 100
+    st.write(f"⚡ **FORÇA DOS INDICADORES:** {f_ind:.0f}% COMPRA")
+    st.progress(f_ind/100)
+    
+    st.markdown("---")
+
+    # --- BLOCO 2: MÉDIAS MÓVEIS ---
+    st.markdown("### 📈 MÉDIAS MÓVEIS")
     ma1 = painel_medias(df1)
     ma5 = painel_medias(df5)
     
     col1, col2 = st.columns(2)
     with col1:
-        st.write("⏱️ **TEMPO 1M**")
+        st.write("⏱️ **M1**")
         st.table(pd.DataFrame(ma1, columns=["PERÍODO", "SINAL"]))
     with col2:
-        st.write("⏱️ **TEMPO 5M**")
+        st.write("⏱️ **M5**")
         st.table(pd.DataFrame(ma5, columns=["PERÍODO", "SINAL"]))
-
-    # --- 2. SEÇÃO DE FORÇAS (NO FINAL DA PÁGINA) ---
-    st.markdown("---")
-    st.markdown("### 📊 ANÁLISE DE FORÇA TOTAL")
-
-    # Força dos Indicadores (M1)
-    qtd_c_ind = sum(1 for v in ind1.values() if "COMPRA" in v)
-    total_ind = len(ind1)
-    fc_ind = (qtd_c_ind / total_ind) * 100
-    fv_ind = 100 - fc_ind
-
-    # Força das Médias (M1)
-    qtd_c_ma = sum(1 for m in ma1 if "COMPRA" in m[1])
-    total_ma = len(ma1)
-    fc_ma = (qtd_c_ma / total_ma) * 100
-    fv_ma = 100 - fc_ma
-
-    # Exibição das Barras
-    st.write(f"🟢 **FORÇA INDICADORES (M1):** {fc_ind:.0f}% | 🔴 **VENDA:** {fv_ind:.0f}%")
-    st.progress(fc_ind/100)
     
-    st.write(f"🟢 **FORÇA MÉDIAS MÓVEIS (M1):** {fc_ma:.0f}% | 🔴 **VENDA:** {fv_ma:.0f}%")
-    st.progress(fc_ma/100)
+    # Força das Médias (Logo abaixo das tabelas)
+    c_ma = sum(1 for m in ma1 if "COMPRA" in m[1])
+    f_ma = (c_ma / len(ma1)) * 100
+    st.write(f"⚡ **FORÇA DAS MÉDIAS:** {f_ma:.0f}% COMPRA")
+    st.progress(f_ma/100)
 
-    # Veredito Final
-    forca_total = (fc_ind + fc_ma) / 2
-    if forca_total > 70: st.success("🚀 COMPRA FORTE: INDICADORES E MÉDIAS ALINHADOS")
-    elif forca_total < 30: st.error("📉 VENDA FORTE: INDICADORES E MÉDIAS ALINHADOS")
-    else: st.warning("⚖️ AGUARDAR: SINAIS MISTOS NO MERCADO")
+    st.markdown("---")
+
+    # --- BLOCO 3: VEREDITO FINAL ---
+    forca_total = (f_ind + f_ma) / 2
+    if forca_total > 70:
+        st.success(f"🚀 **COMPRA FORTE ({forca_total:.0f}%)**")
+    elif forca_total < 30:
+        st.error(f"📉 **VENDA FORTE ({forca_total:.0f}%)**")
+    else:
+        st.warning(f"⚖️ **NEUTRO / AGUARDAR ({forca_total:.0f}%)**")
+        
