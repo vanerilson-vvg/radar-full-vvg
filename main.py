@@ -7,9 +7,9 @@ from streamlit_autorefresh import st_autorefresh
 
 # Configuração e Refresh (15s)
 st.set_page_config(page_title="VVG Terminal Pro", layout="wide")
-st_autorefresh(interval=15000, key="vvg_final_no_100")
+st_autorefresh(interval=15000, key="vvg_v3_unificado")
 
-# Estilo Visual Bloomberg/Neon
+# Estilo Visual Terminal/Bloomberg
 st.markdown("""
     <style>
     .main { background-color: #000000; }
@@ -20,7 +20,6 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 def buscar_dados(intervalo):
-    # Range de 2 dias é suficiente agora que removemos a MA 100
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/EURUSD=X?interval={intervalo}&range=2d"
     try:
         res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=5)
@@ -50,7 +49,7 @@ def calcular_sinais(df):
 def painel_medias(df):
     if df is None or len(df) < 55: return []
     c = df['close']
-    periodos = [5, 10, 20, 50] # Removida a MA 100
+    periodos = [5, 10, 20, 50]
     lista_ma = []
     for p in periodos:
         ma = ta.sma(c, length=p).iloc[-1]
@@ -66,33 +65,48 @@ st.write(f"### 🖥️ TERMINAL VVG | EUR/USD: {preco:.5f}")
 st.caption(f"Sincronizado: {datetime.now().strftime('%H:%M:%S')}")
 
 if df1 is not None and df5 is not None:
-    # 1. Tabela Principal
+    # 1. Tabelas de Dados (Indicadores e Médias)
     ind1, ind5 = calcular_sinais(df1), calcular_sinais(df5)
     tabela = [[k, ind1[k], ind5.get(k, "⚪ ---")] for k in ind1.keys()]
     st.table(pd.DataFrame(tabela, columns=["INDICADOR", "SINAL M1", "SINAL M5"]))
     
-    # 2. Seção de Médias Móveis (MA 5 até MA 50)
     st.markdown("### 📈 MÉDIAS MÓVEIS (RESUMO)")
+    ma1 = painel_medias(df1)
+    ma5 = painel_medias(df5)
+    
     col1, col2 = st.columns(2)
     with col1:
         st.write("⏱️ **TEMPO 1M**")
-        st.table(pd.DataFrame(painel_medias(df1), columns=["PERÍODO", "SINAL"]))
+        st.table(pd.DataFrame(ma1, columns=["PERÍODO", "SINAL"]))
     with col2:
         st.write("⏱️ **TEMPO 5M**")
-        st.table(pd.DataFrame(painel_medias(df5), columns=["PERÍODO", "SINAL"]))
+        st.table(pd.DataFrame(ma5, columns=["PERÍODO", "SINAL"]))
 
-    # 3. Seção de Forças (Compradora e Vendedora)
-    qtd_compra = sum(1 for v in ind1.values() if "COMPRA" in v)
-    total = len(ind1)
-    forca_c = (qtd_compra / total) * 100
-    forca_v = 100 - forca_c
-    
+    # --- 2. SEÇÃO DE FORÇAS (NO FINAL DA PÁGINA) ---
     st.markdown("---")
-    st.write(f"🟢 **FORÇA COMPRADORA (M1):** {forca_c:.0f}%")
-    st.progress(forca_c/100)
-    st.write(f"🔴 **FORÇA VENDEDORA (M1):** {forca_v:.0f}%")
-    st.progress(forca_v/100)
+    st.markdown("### 📊 ANÁLISE DE FORÇA TOTAL")
 
-    if forca_c > 65: st.success("🔥 TENDÊNCIA DE ALTA FORTE")
-    elif forca_v > 65: st.error("📉 TENDÊNCIA DE BAIXA FORTE")
-    else: st.warning("⚖️ MERCADO EM LATERALIZAÇÃO")
+    # Força dos Indicadores (M1)
+    qtd_c_ind = sum(1 for v in ind1.values() if "COMPRA" in v)
+    total_ind = len(ind1)
+    fc_ind = (qtd_c_ind / total_ind) * 100
+    fv_ind = 100 - fc_ind
+
+    # Força das Médias (M1)
+    qtd_c_ma = sum(1 for m in ma1 if "COMPRA" in m[1])
+    total_ma = len(ma1)
+    fc_ma = (qtd_c_ma / total_ma) * 100
+    fv_ma = 100 - fc_ma
+
+    # Exibição das Barras
+    st.write(f"🟢 **FORÇA INDICADORES (M1):** {fc_ind:.0f}% | 🔴 **VENDA:** {fv_ind:.0f}%")
+    st.progress(fc_ind/100)
+    
+    st.write(f"🟢 **FORÇA MÉDIAS MÓVEIS (M1):** {fc_ma:.0f}% | 🔴 **VENDA:** {fv_ma:.0f}%")
+    st.progress(fc_ma/100)
+
+    # Veredito Final
+    forca_total = (fc_ind + fc_ma) / 2
+    if forca_total > 70: st.success("🚀 COMPRA FORTE: INDICADORES E MÉDIAS ALINHADOS")
+    elif forca_total < 30: st.error("📉 VENDA FORTE: INDICADORES E MÉDIAS ALINHADOS")
+    else: st.warning("⚖️ AGUARDAR: SINAIS MISTOS NO MERCADO")
