@@ -7,7 +7,7 @@ from streamlit_autorefresh import st_autorefresh
 
 # Configuração e Refresh Rápido (10s)
 st.set_page_config(page_title="VVG Terminal Pro", layout="wide")
-st_autorefresh(interval=10000, key="vvg_v6_final")
+st_autorefresh(interval=10000, key="vvg_v7_neutral")
 
 # Estilo Visual Terminal
 st.markdown("""
@@ -84,10 +84,13 @@ if df1 is not None:
     tabela_ind = [[k, ind1[k], ind5.get(k, "⚪ ---")] for k in ind1.keys()]
     st.table(pd.DataFrame(tabela_ind, columns=["INDICADOR", "M1", "M5"]))
     
-    # Cálculo de Força e Bolinha de Status
+    # Lógica da Bolinha: Verde (>50), Branca (==50), Vermelha (<50)
     c_ind = sum(1 for v in ind1.values() if "COMPRA" in v)
     f_ind = (c_ind / len(ind1)) * 100
-    status_ind = "🟢" if f_ind >= 50 else "🔴"
+    
+    if f_ind > 50: status_ind = "🟢"
+    elif f_ind == 50: status_ind = "⚪"
+    else: status_ind = "🔴"
     
     st.write(f"{status_ind} **FORÇA INDICADORES (M1):** {f_ind:.0f}%")
     st.progress(f_ind/100)
@@ -106,10 +109,12 @@ if df1 is not None:
         st.write("⏱️ **M5**")
         st.table(pd.DataFrame(ma5, columns=["PERÍODO", "SINAL"]))
     
-    # Cálculo de Força e Bolinha de Status
     c_ma = sum(1 for m in ma1 if "COMPRA" in m[1])
     f_ma = (c_ma / len(ma1)) * 100
-    status_ma = "🟢" if f_ma >= 50 else "🔴"
+    
+    if f_ma > 50: status_ma = "🟢"
+    elif f_ma == 50: status_ma = "⚪"
+    else: status_ma = "🔴"
 
     st.write(f"{status_ma} **FORÇA MÉDIAS (M1):** {f_ma:.0f}%")
     st.progress(f_ma/100)
