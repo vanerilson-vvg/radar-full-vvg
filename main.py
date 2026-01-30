@@ -7,7 +7,7 @@ from streamlit_autorefresh import st_autorefresh
 
 # ATUALIZAÇÃO ULTRA RÁPIDA (2 SEGUNDOS)
 st.set_page_config(page_title="VVG Terminal Pro", layout="wide")
-st_autorefresh(interval=2000, key="vvg_v10_restaurado")
+st_autorefresh(interval=2000, key="vvg_v8_clean")
 
 # Estilo Visual Terminal
 st.markdown("""
@@ -60,7 +60,7 @@ def painel_medias(df):
         lista_ma.append([f"MA {p}", sinal])
     return lista_ma
 
-# --- Execução Principal ---
+# --- Lógica de Execução ---
 df1, preco, anterior = buscar_dados_completos("1m")
 df5, _, _ = buscar_dados_completos("5m")
 
@@ -72,28 +72,40 @@ cor_classe = "price-main" if variacao >= 0 else "price-down"
 
 # --- Interface Principal ---
 st.markdown(f"### 🖥️ TERMINAL VVG | EUR/USD")
+
+# Preço Principal e MT5 Reajustado
 st.markdown(f'<p class="{cor_classe}">{preco:.5f} <span style="font-size:16px;">({pips:.1f} Pips)</span></p>', unsafe_allow_html=True)
 st.markdown(f'<p class="price-mt5">MT5: {preco_reajustado:.5f}</p>', unsafe_allow_html=True)
+
 st.caption(f"Sincronizado: {datetime.now().strftime('%H:%M:%S')}")
 
 if df1 is not None:
     st.markdown("---")
-    
-    # BLOCO 1: INDICADORES TÉCNICOS
+    # BLOCO 1: INDICADORES
     st.markdown("### 📊 INDICADORES TÉCNICOS")
     ind1, ind5 = calcular_sinais(df1), calcular_sinais(df5)
     st.table(pd.DataFrame([[k, ind1[k], ind5.get(k, "⚪ ---")] for k in ind1.keys()], columns=["INDICADOR", "M1", "M5"]))
     
-    c_ind = sum(1 for v in ind1.values() if "COMPRA" in v)
-    f_ind = (c_ind / len(ind1)) * 100
-    status_ind = "🟢" if f_ind > 50 else "⚪" if f_ind == 50 else "🔴"
-    
-    st.write(f"{status_ind} **FORÇA INDICADORES (M1):** {f_ind:.0f}%")
+    f_ind = (sum(1 for v in ind1.values() if "COMPRA" in v) / len(ind1)) * 100
+    st.write(f"{'🟢' if f_ind > 50 else '⚪' if f_ind == 50 else '🔴'} **FORÇA INDICADORES:** {f_ind:.0f}%")
     st.progress(f_ind/100)
     
     st.markdown("---")
-
     # BLOCO 2: MÉDIAS MÓVEIS
     st.markdown("### 📈 MÉDIAS MÓVEIS")
-    ma1
+    ma1, ma5 = painel_medias(df1), painel_medias(df5)
+    col1, col2 = st.columns(2)
+    with col1: st.write("⏱️ **M1**"); st.table(pd.DataFrame(ma1, columns=["PERÍODO", "SINAL"]))
+    with col2: st.write("⏱️ **M5**"); st.table(pd.DataFrame(ma5, columns=["PERÍODO", "SINAL"]))
+    
+    f_ma = (sum(1 for m in ma1 if "COMPRA" in m[1]) / len(ma1)) * 100
+    st.write(f"{'🟢' if f_ma > 50 else '⚪' if f_ma == 50 else '🔴'} **FORÇA MÉDIAS:** {f_ma:.0f}%")
+    st.progress(f_ma/100)
+
+    st.markdown("---")
+    # BLOCO 3: VEREDITO
+    forca_total = (f_ind + f_ma) / 2
+    if forca_total > 70: st.success(f"🚀 **COMPRA FORTE ({forca_total:.0f}%)**")
+    elif forca_total < 30: st.error(f"📉 **VENDA FORTE ({forca_total:.0f}%)**")
+    else: st.warning(f"⚖️ **NEUTRO ({forca_total:.0f}%)**")
     
